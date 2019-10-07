@@ -1,0 +1,85 @@
+# Configuration to generate a Certificate Authority
+# Adapted from http://www.onem2m.org/tr-0038/examples/generation-of-certificates/setting-up-a-root-ca
+
+[ ca ]
+# Default ca section
+default_ca = CA_default
+
+[ CA_default ]
+
+# Where everything is kept. Current directory
+dir = .
+
+# Where the issued certificates are kept
+certs = $dir/certs
+# Where the issued Cerificate Revokation Lists are kept
+crl_dir = $dir/crl
+# Database index file.
+database = $dir/index.txt
+# Allow creation of certificates with same subject.
+unique_subject = no
+new_certs_dir = $dir
+
+# The CA certificate
+certificate = $dir/maincacert.pem
+# The current serial number
+serial = $dir/serial
+# The current crl number
+crlnumber = $dir/crlnumber
+# The CRL of the CA
+crl = $dir/crl.pem
+# The private key of the CA
+private_key = $dir/maincakey.pem
+# Random number file
+RANDFILE = $dir/private/.rand
+
+# Subject Name options
+name_opt = ca_default
+# Certificate field options
+cert_opt = ca_default
+
+# How long a certificate will be certified.
+default_days= 752
+# How long before a new CRL is issued.
+default_crl_days = 30
+# Which digest will be used
+default_md = sha256
+# Keep the order given in the DN
+preserve = no
+
+# Policy used for the checks (See bellow).
+policy = policy_match
+
+[ policy_match ]
+countryName = match
+stateOrProvinceName = match
+organizationName = match
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+[ req ]
+prompt = no
+#default_bits = 1024
+#default_keyfile = privkey.pem
+#attributes = req_attributes
+string_mask = utf8only
+# The following values must match a section name (See bellow)
+distinguished_name= req_distinguished_name
+# Add a self signed certificate (See bellow)
+x509_extensions = v3_ca
+
+[ req_distinguished_name ]
+countryName = CH
+stateOrProvinceName = Vaud
+localityName = Lausanne
+organizationName = None
+commonName = CustomApplicationCA
+emailAddress = ca@no-reply.com
+
+[v3_ca]
+# how to identify the public key being certified
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+basicConstraints       = CA:TRUE
+keyUsage               = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement, keyCertSign
