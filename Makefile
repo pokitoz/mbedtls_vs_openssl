@@ -7,27 +7,33 @@ MBEDTLS_LIBRARY=\
     ${MBEDTLS_FOLDER}/library/libmbedx509.a \
 	${MBEDTLS_FOLDER}/library/libmbedcrypto.a
 
-OPENSSL_INCLUDE=${OPENSSL_FOLDER}/include
-OPENSSL_LIBRARY=\
-	${OPENSSL_FOLDER}/libssl.a \
-	${OPENSSL_FOLDER}/libcrypto.a
+#OPENSSL_INCLUDE=${OPENSSL_FOLDER}/include
+#OPENSSL_LIBRARY=\
+#	${OPENSSL_FOLDER}/libssl.a \
+#	${OPENSSL_FOLDER}/libcrypto.a
 
 CFLAGS=\
 	-Wall \
 	-g3 \
 	-std=c99
 
+LFLAGS=\
+	-ldl \
+	-lssl \
+	-lcrypto
+
 C_SOURCE=\
 	main.c \
 	openssl_custom.c \
 	mbedtls_custom.c
 
-main: ${C_SOURCE} ${MBEDTLS_LIBRARY} ${OPENSSL_LIBRARY}
+main: ${C_SOURCE}
 	gcc -I${MBEDTLS_INCLUDE} \
 		-I${OPENSSL_INCLUDE} \
 		${CFLAGS} \
-		$< \
-		-o $@
+		${C_SOURCE} \
+		-o $@ \
+		${LFLAGS}
 
 clean: main
 	rm $<
