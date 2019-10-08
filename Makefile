@@ -1,3 +1,5 @@
+BINARY=main
+
 MBEDTLS_FOLDER=$(shell pwd)/mbedtls
 OPENSSL_FOLDER=$(shell pwd)/openssl
 
@@ -7,10 +9,10 @@ MBEDTLS_LIBRARY=\
     ${MBEDTLS_FOLDER}/library/libmbedx509.a \
 	${MBEDTLS_FOLDER}/library/libmbedcrypto.a
 
-#OPENSSL_INCLUDE=${OPENSSL_FOLDER}/include
-#OPENSSL_LIBRARY=\
-#	${OPENSSL_FOLDER}/libssl.a \
-#	${OPENSSL_FOLDER}/libcrypto.a
+OPENSSL_INCLUDE=${OPENSSL_FOLDER}/include
+OPENSSL_LIBRARY=\
+	${OPENSSL_FOLDER}/libssl.a \
+	${OPENSSL_FOLDER}/libcrypto.a
 
 CFLAGS=\
 	-Wall \
@@ -19,21 +21,21 @@ CFLAGS=\
 
 LFLAGS=\
 	-ldl \
-	-lssl \
-	-lcrypto
+	-lz
 
 C_SOURCE=\
 	main.c \
 	openssl_custom.c \
 	mbedtls_custom.c
 
-main: ${C_SOURCE}
+${BINARY}: ${C_SOURCE}
 	gcc -I${MBEDTLS_INCLUDE} \
 		-I${OPENSSL_INCLUDE} \
 		${CFLAGS} \
 		${C_SOURCE} \
 		-o $@ \
+		${OPENSSL_LIBRARY} \
 		${LFLAGS}
 
-clean: main
-	rm $<
+clean:
+	rm ${BINARY}
