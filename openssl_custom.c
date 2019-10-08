@@ -264,3 +264,104 @@ bool openssl_store_in_buffer(X509* certificate, BUF_MEM** output)
 
     return success;
 }
+
+bool openssl_sign_buffer_sha256(EVP_PKEY* private_key,
+                                const unsigned char* data,
+                                const size_t data_length,
+                                unsigned char* signature,
+                                size_t* size)
+{
+    bool success = false;
+    if ((private_key == NULL) &&
+        (data == NULL) &&
+        (signature != NULL) &&
+        (size == NULL)) {
+
+        return success;
+    }
+
+#if IS_OPENSSL_1_1
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+#else
+    EVP_MD_CTX* ctx = (EVP_MD_CTX*)malloc(sizeof(EVP_MD_CTX));
+#endif
+
+    EVP_MD_CTX_init(ctx);
+    EVP_PKEY_CTX* key;
+
+    if (EVP_DigestSignInit(ctx, &key, EVP_sha256(), NULL, private_key) == 1) {
+        if (EVP_DigestSignUpdate(ctx, data, data_length) == 1) {
+            if ((EVP_DigestSignFinal(ctx, NULL, size) == 1) && (*size > 0)) {
+                if (EVP_DigestSignFinal(ctx, signature, size) ==  1) {
+                    success = true;
+                }
+            }
+        }
+    }
+
+#if IS_OPENSSL_1_1
+    EVP_MD_CTX_free(ctx);
+#else
+    EVP_MD_CTX_cleanup(ctx);
+    free(ctx);
+#endif
+
+    return success;
+}
+
+bool openssl_verify_signature_sha256(X509* certificate,
+                                     const unsigned char* data,
+                                     const size_t data_length,
+                                     const unsigned char* signature,
+                                     size_t size)
+{
+    bool success = false;
+    if ((certificate == NULL) && (data == NULL) && (signature != NULL)) {
+        return success;
+    }
+
+#if IS_OPENSSL_1_1
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+#else
+    EVP_MD_CTX* ctx = (EVP_MD_CTX*)malloc(sizeof(EVP_MD_CTX));
+#endif
+
+    EVP_MD_CTX_init(ctx);
+    EVP_PKEY* public_key = X509_get_pubkey(certificate);
+
+    if (public_key != NULL) {
+        const EVP_MD * md = EVP_sha256();
+        EVP_PKEY_CTX* key;
+        int digest_init_result = EVP_DigestVerifyInit(ctx,
+                                                      &key,
+                                                      md,
+                                                      NULL,
+                                                      public_key);
+
+        if (digest_init_result == 1) {
+            int digest_update_result = EVP_DigestVerifyUpdate(ctx,
+                                                              data,
+                                                              data_length);
+
+            if (digest_update_result == 1) {
+                int digest_final_result = EVP_DigestVerifyFinal(ctx,
+                                                                signature,
+                                                                size);
+
+                if (digest_final_result == 1) {
+                    success = true;
+                }
+            }
+        }
+        EVP_PKEY_free(public_key);
+    }
+
+#if IS_OPENSSL_1_1
+    EVP_MD_CTX_free(ctx);
+#else
+    EVP_MD_CTX_cleanup(ctx);
+    free(ctx);
+#endif
+
+    return success;
+}

@@ -3,6 +3,7 @@
 
 #include <openssl/x509.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 X509* openssl_load_certificate(const char* cert_path);
 
@@ -25,5 +26,17 @@ EVP_PKEY* openssl_load_private_key(X509* certificate,
 X509* openssl_load_buffer(const char* data, size_t size);
 
 bool openssl_store_in_buffer(X509* certificate, BUF_MEM** output);
+
+bool openssl_sign_buffer_sha256(EVP_PKEY* private_key,
+                                const unsigned char* data,
+                                const size_t data_length,
+                                unsigned char* signature,
+                                size_t* size);
+
+bool openssl_verify_signature_sha256(X509* certificate,
+                                     const unsigned char* data,
+                                     const size_t data_length,
+                                     const unsigned char* signature,
+                                     size_t size);
 
 #endif /* OPENSSL_CUSTOM_H */
