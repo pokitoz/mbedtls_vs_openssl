@@ -18,7 +18,7 @@ int main(void)
                                      ca_sn,
                                      ca_algo);
 
-    if (ca!= NULL) {
+    if (ca != NULL) {
     	printf("CA: there_are_crls %u. Subject: %s. Algo: %s\n",
     	       there_are_crls,
     	       ca_sn,
@@ -29,6 +29,17 @@ int main(void)
 	char signature_algorithm[128];
 	openssl_get_signature_algorithm(cert, signature_algorithm);
 	printf("Signature: %s\n", signature_algorithm);
+
+    EVP_PKEY* private_key =
+        openssl_load_private_key(cert,
+                                 "certificates/p1privkey.pem",
+                                 NULL);
+
+    if (private_key != NULL) {
+        printf("private_key is initialized.\n");
+    } else {
+        printf("private_key is not initilized.\n");
+    }
 
     uint8_t verify_result = openssl_verify_certificate(ca,
                                                        cert,

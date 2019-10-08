@@ -18,4 +18,8 @@ uint8_t openssl_verify_certificate(X509_STORE* store,
                                    X509* cert,
                                    uint8_t there_are_crls);
 
+EVP_PKEY* openssl_load_private_key(X509* certificate,
+                                   const char* private_key_path,
+                                   const char* password);
+
 #endif /* OPENSSL_CUSTOM_H */

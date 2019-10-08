@@ -197,3 +197,33 @@ uint8_t openssl_verify_certificate(X509_STORE* store,
 
     return result;
 }
+
+EVP_PKEY* openssl_load_private_key(X509* certificate,
+                                   const char* private_key_path,
+                                   const char* password)
+{
+    EVP_PKEY* private_key = NULL;
+
+    BIO* bio = BIO_new(BIO_s_file());
+
+    if(bio != NULL) {
+        if(BIO_read_filename(bio, private_key_path) > 0) {
+            private_key = PEM_read_bio_PrivateKey(bio,
+                                                  NULL, 
+                                                  NULL,
+                                                  (void*) password);
+
+            // Verify private key.
+            if((private_key != NULL) &&
+               (!X509_check_private_key(certificate, private_key))) {
+            
+                EVP_PKEY_free(private_key);
+                private_key = NULL;
+            }
+        }
+
+        BIO_free(bio);
+    }
+
+    return private_key;
+}
