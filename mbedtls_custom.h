@@ -22,4 +22,8 @@ int mbedtls_c_store_in_buffer(const mbedtls_x509_crt* cert,
                               char** output,
                               size_t* output_size);
 
+int mbedtls_c_verify_certificate(mbedtls_x509_crt* cert,
+                                 mbedtls_x509_crt* ca,
+                                 mbedtls_x509_crl* crl);
+
 #endif /* MBEDTLS_CUSTOM_H */

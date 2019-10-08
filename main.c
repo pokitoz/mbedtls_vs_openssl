@@ -152,6 +152,12 @@ void mbedtls_tests(void)
         printf("private_key is not initilized.\n");
     }
 
+    int result_verify_cert = mbedtls_c_verify_certificate(cert, ca, NULL);
+    if (result_verify_cert == 0) {
+        printf("Certificate verified by CA.\n");
+    } else {
+        printf("Certificate could not be verified.\n");
+    }
 }
 
 int main(void)

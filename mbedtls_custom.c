@@ -166,3 +166,32 @@ int mbedtls_c_store_in_buffer(const mbedtls_x509_crt* cert,
 
     return result;
 }
+
+int mbedtls_c_verify_certificate(mbedtls_x509_crt* cert,
+                                 mbedtls_x509_crt* ca,
+                                 mbedtls_x509_crl* crl)
+{
+    int result = 0;
+    uint32_t flags = 0;
+
+    result = mbedtls_x509_crt_verify(cert,
+                                     ca,
+                                     crl,
+                                     NULL,
+                                     &flags,
+                                     NULL,
+                                     NULL);
+
+    if((result != 0) || (flags != 0)) {
+        char output_error[4096];
+        printf("Verification failed: ");
+        mbedtls_x509_crt_verify_info(output_error,
+                                     sizeof(output_error),
+                                     " !",
+                                     flags);
+
+        printf("%s\n", output_error);
+  }
+
+  return result;
+}
