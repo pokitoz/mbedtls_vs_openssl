@@ -35,6 +35,7 @@ ${BINARY}: ${C_SOURCE}
 		${C_SOURCE} \
 		-o $@ \
 		${OPENSSL_LIBRARY} \
+		${MBEDTLS_LIBRARY} \
 		${LFLAGS}
 
 clean:

@@ -32,6 +32,8 @@ static void openssl_tests(void)
     	       ca_has_crls,
     	       ca_sn,
                ca_algo);
+    } else {
+        printf("Could not load CA.\n");
     }
 
     cert = openssl_load_certificate("certificates/p1signed.pem");
@@ -123,9 +125,41 @@ static void openssl_tests(void)
 
 }
 
+void mbedtls_tests(void)
+{
+    mbedtls_x509_crt* ca = NULL;
+    mbedtls_x509_crt* cert = NULL;
+    mbedtls_pk_context* private_key = NULL;
+
+    ca = mbedtls_c_load_certificate("certificates/maincacert.pem", false);
+    if (ca != NULL) {
+        printf("CA loaded.\n");
+    } else {
+        printf("CA could not be loaded.\n");
+    }
+
+    cert = mbedtls_c_load_certificate("certificates/p1signed.pem", false);
+    if (cert != NULL) {
+        printf("Certificate loaded.\n");
+    } else {
+        printf("Certificate could not be loaded.\n");
+    }
+
+    private_key = mbedtls_c_load_private_key("certificates/p1privkey.pem");
+    if (private_key != NULL) {
+        printf("private_key is initialized.\n");
+    } else {
+        printf("private_key is not initilized.\n");
+    }
+
+}
+
 int main(void)
 {
+    printf("===== OpenSSL =====\n");
     openssl_tests();
+    printf("===== mbedTLS =====\n");
+    mbedtls_tests();
     printf("===== Finish =====\n");
     return 0;
 }
