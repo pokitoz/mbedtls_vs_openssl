@@ -46,4 +46,5 @@ void openssl_hmac_256(uint8_t* key_data,
                       uint8_t* output,
                       size_t* output_size);
 
+void openssl_print_sn(X509 *x);
 #endif /* OPENSSL_CUSTOM_H */

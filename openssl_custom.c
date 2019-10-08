@@ -2,6 +2,8 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/asn1.h>
+#include <openssl/asn1t.h>
+#include <openssl/objects.h>
 
 #include <stdbool.h>
 #include <string.h>
@@ -399,4 +401,50 @@ void openssl_hmac_256(uint8_t* key_data,
 
     EVP_PKEY_free(key);
 
+}
+
+void openssl_print_sn(X509 *x)
+{
+    X509_NAME* cert_sn = X509_get_subject_name(x);
+    char* cert_sn_str = X509_NAME_oneline(cert_sn, NULL, 0);
+    printf("cert_sn_str: %s\n", cert_sn_str);
+    OPENSSL_free(cert_sn_str);
+
+    char *issuer = X509_NAME_oneline(X509_get_issuer_name(x), NULL, 0);
+    printf("Issuer %s\n", issuer);
+    OPENSSL_free(issuer);
+
+    BIO* cert_sn_rfc2253_str = BIO_new(BIO_s_mem());
+    X509_NAME_print_ex(cert_sn_rfc2253_str, cert_sn, 0, XN_FLAG_RFC2253 & ~ASN1_STRFLGS_ESC_MSB);
+    const int bufsize = 1024;
+    char buffer[bufsize];
+    int length = BIO_read(cert_sn_rfc2253_str, buffer, bufsize);
+    printf("cert_sn_rfc2253_str: %s\n", buffer);
+    printf("length: %d\n", length);
+    BIO_free(cert_sn_rfc2253_str);
+
+    printf("Parsing Name Entries:\n");
+    for (int i = 0; i < X509_NAME_entry_count(cert_sn); i++) {
+          X509_NAME_ENTRY *e = X509_NAME_get_entry(cert_sn, i);
+        	ASN1_STRING *d = X509_NAME_ENTRY_get_data(e);
+        	unsigned char *str = ASN1_STRING_data(d);
+    	    printf("index=%d: %s\n", i, str);
+    }
+
+    unsigned char md[32];
+    unsigned int length_sha = 0;
+
+    const ASN1_ITEM *it = ASN1_ITEM_rptr(X509_NAME);
+    printf("ASN1_ITEM_rptr %d\n", it->itype);
+    ASN1_item_digest(
+        ASN1_ITEM_rptr(X509_NAME),
+        EVP_sha256(),
+        (char *)cert_sn,
+        md,
+        &length_sha);
+
+    printf("Digest of subject name:\n");
+    for(int i = 0; i < length_sha; i++) {
+        printf("0x%x, ", md[i]);
+    }
 }
