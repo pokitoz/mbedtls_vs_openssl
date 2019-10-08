@@ -4,35 +4,44 @@
 #include <openssl/opensslv.h>
 #include <stdio.h>
 
-int main(void)
+static void openssl_tests(void)
 {
     OpenSSL_add_all_algorithms();
 
-    uint8_t there_are_crls;
+    X509_STORE* ca = NULL;
+    uint8_t ca_has_crls;
     char ca_sn[1024];
     char ca_algo[128];
 
-    X509_STORE* ca = openssl_load_ca("certificates/maincacert.pem",
-                                     &there_are_crls,
-                                     ca_sn,
-                                     ca_algo);
+    X509* cert = NULL;
+	char cert_aglo[128];
+
+    EVP_PKEY* private_key = NULL;
+
+    BUF_MEM* mem_cert = NULL;
+
+    X509* cert_from_buffer = NULL;
+
+    ca = openssl_load_ca("certificates/maincacert.pem",
+                         &ca_has_crls,
+                         ca_sn,
+                         ca_algo);
 
     if (ca != NULL) {
-    	printf("CA: there_are_crls %u. Subject: %s. Algo: %s\n",
-    	       there_are_crls,
+    	printf("CA: ca_has_crls %u. Subject: %s. Algo: %s\n",
+    	       ca_has_crls,
     	       ca_sn,
                ca_algo);
     }
 
-    X509* cert = openssl_load_certificate("certificates/p1signed.pem");
-	char signature_algorithm[128];
-	openssl_get_signature_algorithm(cert, signature_algorithm);
-	printf("Signature: %s\n", signature_algorithm);
+    cert = openssl_load_certificate("certificates/p1signed.pem");
 
-    EVP_PKEY* private_key =
-        openssl_load_private_key(cert,
-                                 "certificates/p1privkey.pem",
-                                 NULL);
+	openssl_get_signature_algorithm(cert, cert_aglo);
+	printf("Certificate Algo: %s\n", cert_aglo);
+
+    private_key = openssl_load_private_key(cert,
+                                           "certificates/p1privkey.pem",
+                                           NULL);
 
     if (private_key != NULL) {
         printf("private_key is initialized.\n");
@@ -40,53 +49,53 @@ int main(void)
         printf("private_key is not initilized.\n");
     }
 
-    BUF_MEM* mem = BUF_MEM_new();
-    bool store_result = openssl_store_in_buffer(cert, &mem);
+    mem_cert = BUF_MEM_new();
+    bool store_result = openssl_store_in_buffer(cert, &mem_cert);
     if (store_result) {
         printf("Store to buffer ok.\n");
     } else {
         printf("Could not store certificate to buffer.\n");
     }
 
-    X509* buffer_open_cert = openssl_load_buffer(mem->data, mem->length);
-    if (buffer_open_cert != NULL) {
+    cert_from_buffer = openssl_load_buffer(mem_cert->data, mem_cert->length);
+    if (cert_from_buffer != NULL) {
         printf("Buffer loaded to certificate.\n");
     } else {
         printf("Could not load certificate from buffer.\n");
     }
 
+    uint8_t result_verify_cert = openssl_verify_certificate(ca,
+                                                            cert,
+                                                            ca_has_crls);
 
-    uint8_t verify_result = openssl_verify_certificate(ca,
-                                                       cert,
-                                                       there_are_crls);
+    printf("Result verification certificate: %x\n", result_verify_cert);
 
-    printf("Result verification certificate: %x\n", verify_result);
-
-    unsigned char data[1024];
+    unsigned char data_to_be_signed[1024];
     unsigned char data_signed[128];
     size_t size_data_signed = sizeof(data_signed);
     bool result_sign = openssl_sign_buffer_sha256(private_key,
-	                                              data,
-	                                              sizeof(data),
+	                                              data_to_be_signed,
+	                                              sizeof(data_to_be_signed),
 	                                              data_signed,
 	                                              &size_data_signed);
 
     if (result_sign) {
-        printf("Signature of data ok.\n");
+        printf("Signature of data using private key ok.\n");
     } else {
-        printf("Signature failed.\n");
+        printf("Signature of data using private key failed.\n");
     }
 
-    bool result_verify_data = openssl_verify_signature_sha256(cert,
-                                                              data,
-                                                              sizeof(data),
-                                                              data_signed,
-                                                              size_data_signed);
+    bool result_verify_data =
+         openssl_verify_signature_sha256(cert,
+                                         data_to_be_signed,
+                                         sizeof(data_to_be_signed),
+                                         data_signed,
+                                         size_data_signed);
 
     if (result_verify_data) {
-        printf("Verification of data ok.\n");
+        printf("Verification of data using public key ok.\n");
     } else {
-        printf("Verification failed.\n");
+        printf("Verification of data using public key failed.\n");
     }
 
     uint8_t key_data[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
@@ -106,11 +115,17 @@ int main(void)
                      output,
                      &output_size);
 
+    printf("Authenticated data with HMAC:");
     for (uint32_t i = 0; i < output_size; i++) {
         printf("0x%x ", output[i]);
     }
     printf("\n");
 
+}
+
+int main(void)
+{
+    openssl_tests();
     printf("===== Finish =====\n");
     return 0;
 }
