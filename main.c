@@ -30,6 +30,11 @@ int main(void)
 	openssl_get_signature_algorithm(cert, signature_algorithm);
 	printf("Signature: %s\n", signature_algorithm);
 
+    uint8_t verify_result = openssl_verify_certificate(ca,
+                                                       cert,
+                                                       there_are_crls);
+
+    printf("Result verification: %x\n", verify_result);
 
     printf("===== Finish =====\n");
     return 0;

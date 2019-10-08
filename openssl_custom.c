@@ -151,3 +151,49 @@ X509_STORE* openssl_load_ca(const char* ca_path,
 
     return NULL;
 }
+
+uint8_t openssl_verify_certificate(X509_STORE* store,
+                                   X509* cert,
+                                   uint8_t there_are_crls)
+{
+    uint8_t result = 0;
+
+    if ((store == NULL) || (cert == NULL)) {
+        return 1;
+    }
+
+    X509_STORE_CTX* ctx = X509_STORE_CTX_new();
+    if (ctx == NULL) {
+        return 2;
+    }
+
+    //unsigned long flags = there_are_crls ? X509_V_FLAG_CRL_CHECK : 0;
+    //flags |= X509_V_FLAG_X509_STRICT;
+    //            | X509_V_FLAG_CHECK_SS_SIGNATURE
+    //            | X509_V_FLAG_POLICY_CHECK;
+   
+    //printf("Flags: 0x%lx\n", flags);
+    
+    if(X509_STORE_CTX_init(ctx, store, cert, NULL) > 0) {
+        //X509_STORE_CTX_set_flags(ctx, flags); 
+
+        if(X509_verify_cert(ctx) > 0) {
+            result = 0;
+        } else {
+            if (ctx->error == X509_V_OK) {
+                printf("Invalidation error of certificate. No error code.\n");
+            } else {
+                printf("Invalidation error of certificate #%d: %s\n", 
+                        ctx->error, X509_verify_cert_error_string(ctx->error));
+            }
+        }
+
+        X509_STORE_CTX_cleanup(ctx);
+    } else {
+        printf("Cannot init context for verifying certificate\n");
+    }
+
+    X509_STORE_CTX_free(ctx);
+
+    return result;
+}

@@ -14,4 +14,8 @@ X509_STORE* openssl_load_ca(const char* ca_path,
                             char* ca_sn,
                             char* ca_algo);
 
+uint8_t openssl_verify_certificate(X509_STORE* store,
+                                   X509* cert,
+                                   uint8_t there_are_crls);
+
 #endif /* OPENSSL_CUSTOM_H */
