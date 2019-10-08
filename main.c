@@ -89,6 +89,8 @@ int main(void)
         printf("Verification failed.\n");
     }
 
+    openssl_hmac_256();
+
     printf("===== Finish =====\n");
     return 0;
 }

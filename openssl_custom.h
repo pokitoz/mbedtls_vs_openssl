@@ -39,4 +39,6 @@ bool openssl_verify_signature_sha256(X509* certificate,
                                      const unsigned char* signature,
                                      size_t size);
 
+void openssl_hmac_256(void);
+
 #endif /* OPENSSL_CUSTOM_H */

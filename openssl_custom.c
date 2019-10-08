@@ -365,3 +365,49 @@ bool openssl_verify_signature_sha256(X509* certificate,
 
     return success;
 }
+
+void openssl_hmac_256(void)
+{
+    uint8_t key_data[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+                            15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+                            28, 29, 30, 31};
+
+    uint8_t input[32] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+    uint32_t input_size = sizeof(input);
+    uint8_t output[32];
+    size_t output_size;
+
+    EVP_PKEY* key = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC,
+                                         NULL,
+                                         key_data,
+                                         sizeof(key_data));
+
+#if IS_OPENSSL_1_1
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+#else
+    EVP_MD_CTX* ctx = (EVP_MD_CTX*)malloc(sizeof(EVP_MD_CTX));
+#endif
+
+    EVP_MD_CTX_init(ctx);
+    EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, key);
+    EVP_DigestSignUpdate(ctx, input, input_size);
+    EVP_DigestSignFinal(ctx, NULL, &output_size);
+    EVP_DigestSignFinal(ctx, output, &output_size);
+
+    for (uint32_t i = 0; i < output_size; i++) {
+        printf("0x%x ", output[i]);
+    }
+    printf("\n");
+
+    EVP_PKEY_free(key);
+
+#if IS_OPENSSL_1_1
+    EVP_MD_CTX_free(ctx);
+#else
+    EVP_MD_CTX_cleanup(ctx);
+    free(ctx);
+#endif
+
+}
