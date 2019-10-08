@@ -4,6 +4,13 @@
 #include <openssl/opensslv.h>
 #include <stdio.h>
 
+uint8_t hmac_key_data[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+                        15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+                        28, 29, 30, 31};
+
+uint8_t hmac_input[32] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
 static void openssl_tests(void)
 {
     OpenSSL_add_all_algorithms();
@@ -100,20 +107,13 @@ static void openssl_tests(void)
         printf("Verification of data using public key failed.\n");
     }
 
-    uint8_t key_data[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-                            15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-                            28, 29, 30, 31};
-
-    uint8_t input[32] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-
     uint8_t output[32];
     size_t output_size = 32;
 
-    openssl_hmac_256(key_data,
-                     sizeof(key_data),
-                     input,
-                     sizeof(input),
+    openssl_hmac_256(hmac_key_data,
+                     sizeof(hmac_key_data),
+                     hmac_input,
+                     sizeof(hmac_input),
                      output,
                      &output_size);
 
@@ -158,6 +158,23 @@ void mbedtls_tests(void)
     } else {
         printf("Certificate could not be verified.\n");
     }
+
+    uint8_t output[32];
+    size_t output_size = 32;
+
+    mbedtls_c_hmac_256(hmac_key_data,
+                       sizeof(hmac_key_data),
+                       hmac_input,
+                       sizeof(hmac_input),
+                       output,
+                       &output_size);
+
+    printf("Authenticated data with HMAC:");
+    for (uint32_t i = 0; i < output_size; i++) {
+        printf("0x%x ", output[i]);
+    }
+    printf("\n");
+
 }
 
 int main(void)

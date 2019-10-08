@@ -26,4 +26,13 @@ int mbedtls_c_verify_certificate(mbedtls_x509_crt* cert,
                                  mbedtls_x509_crt* ca,
                                  mbedtls_x509_crl* crl);
 
+void mbedtls_c_hmac_256(uint8_t* key_data,
+                  size_t key_data_size,
+                  uint8_t* input,
+                  size_t input_size,
+                  uint8_t* output,
+                  size_t* output_size);
+
+void mbedtls_gcm(void);
+
 #endif /* MBEDTLS_CUSTOM_H */

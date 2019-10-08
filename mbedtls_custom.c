@@ -2,6 +2,7 @@
 #include "mbedtls_custom.h"
 #include <mbedtls/base64.h>
 #include <mbedtls/error.h>
+#include <mbedtls/gcm.h>
 #include <stdlib.h>
 
 void mbedtls_c_print_opcode(void)
@@ -194,4 +195,203 @@ int mbedtls_c_verify_certificate(mbedtls_x509_crt* cert,
   }
 
   return result;
+}
+
+void mbedtls_c_hmac_256(uint8_t* key_data,
+                  size_t key_data_size,
+                  uint8_t* input,
+                  size_t input_size,
+                  uint8_t* output,
+                  size_t* output_size)
+{
+    if ((key_data == NULL) &&
+        (input == NULL) &&
+        (output == NULL) &&
+        (output_size == NULL)) {
+
+        return;
+    }
+
+    mbedtls_md_context_t ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+    mbedtls_md_init(&ctx);
+    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
+    mbedtls_md_hmac_starts(&ctx, key_data, key_data_size);
+    mbedtls_md_hmac_update(&ctx, input, input_size);
+    mbedtls_md_hmac_finish(&ctx, output);
+
+    mbedtls_md_free(&ctx);
+}
+
+void mbedtls_gcm(void)
+{
+    uint8_t data_out[100] = {0};
+    uint8_t data_out2[100] = {0};
+    uint32_t data_out_size = sizeof(data_out);
+    uint32_t data_out2_size = sizeof(data_out2);
+
+    uint8_t data_decrypt_out[100] = {0};
+    uint32_t data_decrypt_out_size = sizeof(data_decrypt_out);
+
+    uint8_t key_data[]=
+        {0xbd, 0xbb, 0xe9, 0xfd, 0xcd, 0xaf, 0x14, 0x06, 0x3e, 0x9b, 0x09, 0xde,
+         0xd6, 0x25, 0x80, 0x50};
+
+    uint32_t key_data_size = sizeof(key_data);
+
+    uint8_t data_in[] =
+        {0x15, 0x03, 0x34, 0x00, 0x00, 0x00, 0x10, 0x00, 0xff, 0x00, 0x03, 0xc7,
+         0xff, 0x00, 0x03, 0xc2, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+         0x70, 0x00, 0x10, 0x00, 0xeb, 0xba, 0x3f, 0x10, 0xa7, 0x26, 0x5e, 0x06,
+         0xc1, 0x05, 0x96, 0x5d, 0x00, 0x00, 0x01, 0x03, 0x71, 0x00, 0x04, 0x00,
+         0x00, 0x00, 0x00, 0x03, 0x01, 0x00, 0x00, 0x00};
+
+    uint32_t data_in_size = sizeof(data_in);
+    uint8_t iv[] = {0x0e, 0xcf, 0xf7, 0x03, 0x2b, 0x67, 0x0b, 0xa0, 0x1e, 0x46,
+                    0x77, 0x31};
+
+    uint32_t iv_size = sizeof(iv);
+
+    uint8_t tag[16] = {0};
+    uint32_t tag_size = sizeof(tag);
+
+    uint8_t tag_get_mac[16] = {0};
+    uint32_t tag_get_mac_size = sizeof(tag_get_mac);
+
+    uint8_t expected_data_out[] =
+        {0x7d, 0x6e, 0x13, 0xc7, 0xd6, 0xac, 0x85, 0x26, 0x76, 0xc2, 0x4c, 0xdf,
+         0x6d, 0x13, 0x49, 0xc9, 0x04, 0x69, 0x26, 0x55, 0xe2, 0x1b, 0x91, 0xae,
+         0xee, 0x01, 0x50, 0xed, 0x05, 0x43, 0xfa, 0xb8, 0xe9, 0xf6, 0xa4, 0x67,
+         0x26, 0x8b, 0xb2, 0x49, 0x18, 0x19, 0x7c, 0xc5, 0x4f, 0x8f, 0x21, 0x39,
+         0xaf, 0x91, 0xdb, 0x8d, 0x29, 0x8b, 0x28, 0x65};
+
+    uint32_t expected_data_out_size = sizeof(expected_data_out);
+
+    uint8_t expected_tag[] = {0x80, 0xf6, 0xe8, 0xe6, 0x47, 0x03, 0xea, 0x9b,
+                              0x2d, 0x03, 0x8b, 0x67, 0x7d, 0x6b, 0x83, 0xcf};
+
+    uint32_t expected_tag_size = sizeof(expected_tag);
+
+
+    mbedtls_gcm_context aes;
+
+/*
+    // init the context...
+    mbedtls_gcm_init( &aes );
+    // Set the key. This next line could have CAMELLIA or ARIA as our GCM mode cipher...
+    mbedtls_gcm_setkey( &aes,MBEDTLS_CIPHER_ID_AES , 
+                        (const unsigned char*) key,
+                        key_data_size);
+    // Initialise the GCM cipher...
+    mbedtls_gcm_starts(&aes, MBEDTLS_GCM_ENCRYPT,
+                             (const unsigned char*)iv,
+                             iv_size,
+                             NULL,
+                             0);
+
+    // Send the intialised cipher some data and store it...
+    mbedtls_gcm_update(&aes, data_in_size, data_in, data_out);
+    
+    mbedtls_gcm_finish(&aes, tag, tag_size);
+    // Free up the context.
+    mbedtls_gcm_free( &aes );
+
+    for (int i = 0; i < data_in_size; i++) {  
+        printf("%02x ", (int)data_out[i]);
+    }
+    printf("\n");
+    for (int i = 0; i < tag_size; i++) {  
+        printf("%02x ", (int)tag[i]);
+        //tag[i] = 0;
+    }
+*/
+    printf("\n");    printf("\n");
+
+    printf("[i] mbedtls_gcm_auth_encrypt:");
+    mbedtls_gcm_init( &aes );
+    mbedtls_gcm_setkey(&aes,
+                       MBEDTLS_CIPHER_ID_AES,
+                       (const unsigned char*) key_data,
+                       key_data_size * 8);
+
+    mbedtls_gcm_crypt_and_tag(&aes,
+		                      MBEDTLS_GCM_ENCRYPT,
+		                      data_in_size,
+		                      iv,
+		                      iv_size,
+		                      NULL,
+		                      0,
+		                      data_in,
+		                      data_out,
+		                      tag_size,
+		                      tag);
+
+    mbedtls_gcm_free( &aes );
+
+    printf("\nDataIN\n");
+    for (int i = 0; i < data_in_size; i++) {  
+        printf("%02x ", (int)data_in[i]);
+    }
+    printf("\nTAG\n");
+    for (int i = 0; i < tag_size; i++) {  
+        printf("%02x ", (int)tag[i]);
+    }
+
+    printf("\nData encryp\n");
+    for (int i = 0; i < data_in_size; i++) {  
+        printf("%02x ", (int)data_out[i]);
+    }
+    
+    printf("\n");    printf("\n");
+
+    printf("[i] mbedtls_gcm_auth_decrypt:");
+    mbedtls_gcm_init( &aes );
+    mbedtls_gcm_setkey( &aes,
+                        MBEDTLS_CIPHER_ID_AES,
+                        (const unsigned char*) key_data,
+                        key_data_size * 8);
+
+    mbedtls_gcm_auth_decrypt(&aes,
+	                         data_in_size /*length*/,
+	                         iv,
+	                         iv_size,
+	                         NULL,
+	                         0,
+	                         tag,
+	                         tag_size,
+	                         data_out,
+	                         data_out2);
+
+    mbedtls_gcm_free( &aes );
+
+    printf("\nData encrypt\n");
+    for (int i = 0; i < data_in_size; i++) {  
+      printf("%02x ", data_out[i]);
+    }
+    printf("\nData decrypt\n");
+    for (int i = 0; i < data_in_size; i++) {  
+        printf("%02x ", (int)data_out2[i]);
+    }
+
+    printf("\n");    printf("\n");
+    
+/*
+    printf("[i] Decrypted from buffer:");
+    mbedtls_gcm_init( &aes );
+    mbedtls_gcm_setkey( &aes,MBEDTLS_CIPHER_ID_AES , (const unsigned char*) key, strlen(key) * 8);
+    mbedtls_gcm_starts(&aes, MBEDTLS_GCM_DECRYPT, (const unsigned char*)iv, strlen(iv),NULL, 0);
+    mbedtls_gcm_update(&aes,64,(const unsigned char*)output, fin);
+    mbedtls_gcm_finish(&aes, tag, tag_size);
+    mbedtls_gcm_free( &aes );
+
+    for (int i = 0; i < strlen(input); i++) {  
+      printf("%c", fin[i]);
+    }
+    printf("\n");
+    for (int i = 0; i < 16; i++) {  
+        printf("%02x ", (int)tag[i]);
+    }
+*/
+
 }
