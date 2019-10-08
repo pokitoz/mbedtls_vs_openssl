@@ -2,7 +2,6 @@
 #include "mbedtls_custom.h"
 
 #include <openssl/opensslv.h>
-
 #include <stdio.h>
 
 int main(void)
@@ -40,6 +39,10 @@ int main(void)
     } else {
         printf("private_key is not initilized.\n");
     }
+
+    BUF_MEM* mem = BUF_MEM_new();
+    bool store_result = openssl_store_in_buffer(cert, &mem);
+    X509* buffer_open_cert = openssl_load_buffer(mem->data, mem->length);
 
     uint8_t verify_result = openssl_verify_certificate(ca,
                                                        cert,

@@ -22,4 +22,8 @@ EVP_PKEY* openssl_load_private_key(X509* certificate,
                                    const char* private_key_path,
                                    const char* password);
 
+X509* openssl_load_buffer(const char* data, size_t size);
+
+bool openssl_store_in_buffer(X509* certificate, BUF_MEM** output);
+
 #endif /* OPENSSL_CUSTOM_H */

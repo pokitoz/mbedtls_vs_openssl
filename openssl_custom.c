@@ -227,3 +227,40 @@ EVP_PKEY* openssl_load_private_key(X509* certificate,
 
     return private_key;
 }
+
+X509* openssl_load_buffer(const char* data, size_t size)
+{
+    X509* certificate = NULL;
+    BIO* cid = BIO_new_mem_buf(data, size);
+
+    if(cid != NULL) {
+        certificate = PEM_read_bio_X509_AUX(cid, NULL, NULL, NULL);
+        BIO_free(cid);
+    }
+
+    return certificate;
+}
+
+bool openssl_store_in_buffer(X509* certificate, BUF_MEM** output)
+{
+    bool success = false;
+    BIO *bio = BIO_new(BIO_s_mem());
+
+    if ((bio != NULL) && (output != NULL) && (certificate != NULL)) {
+        if (PEM_write_bio_X509(bio, certificate) > 0) {
+            BIO_get_mem_ptr(bio, output);
+
+            if (*output != NULL) {
+                (void)BIO_set_close(bio, BIO_NOCLOSE);
+                success = true;
+            }
+
+        } else {
+            printf("Store in buffer failed.\n");
+        }
+
+        BIO_free(bio);
+    }
+
+    return success;
+}
