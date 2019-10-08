@@ -62,3 +62,92 @@ uint8_t openssl_get_signature_algorithm(X509* certificate,
 
     return result;
 }
+
+X509_STORE* openssl_load_ca(const char* ca_path,
+                            uint8_t* there_are_crls,
+                            char* ca_sn,
+                            char* ca_algo)
+{
+    X509_STORE* store = X509_STORE_new();
+
+	if ((ca_path == NULL) ||
+	    (there_are_crls == NULL) ||
+        (ca_sn == NULL) ||
+        (ca_algo == NULL)) {
+
+		return NULL;
+	}
+
+    *there_are_crls = 0;
+
+    if (store != NULL) {
+        BIO* bio = BIO_new(BIO_s_file());
+
+        if (bio != NULL) {
+            if (BIO_read_filename(bio, ca_path) > 0) {
+                STACK_OF(X509_INFO)* info = PEM_X509_INFO_read_bio(bio,
+                                                                   NULL,
+                                                                   NULL,
+                                                                   NULL);
+
+                if (info != NULL) {
+                    bool found_certificate = false;
+
+                    for (int i = 0; i < sk_X509_INFO_num(info); i++) {
+                        X509_INFO* itmp = sk_X509_INFO_value(info, i);
+
+                        if (itmp->x509) {
+                            // Retrieve subject name
+                            if (ca_sn != NULL) {
+                                X509_NAME* ca_sn_struct =
+                                    X509_get_subject_name(itmp->x509);
+
+                                if (ca_sn_struct != NULL) {
+                                    char* ca_sn_str =
+                                        X509_NAME_oneline(ca_sn_struct, 0, 0);
+
+                                    if (ca_sn_str != NULL) {
+                                        strncpy(ca_sn,
+                                                ca_sn_str,
+                                                strlen(ca_sn_str) + 1);
+
+                                        OPENSSL_free(ca_sn_str);
+                                    }
+                                }
+                            }
+
+                            // Retrieve signature algorithm
+                            if (ca_algo != NULL) {
+                                if (openssl_get_signature_algorithm(itmp->x509, ca_algo) != 0) {
+                                    printf("ca_algo: %s\n", ca_algo);
+                                } else {
+                                    printf("Could not get ca_algo\n");
+                                }
+                            }
+
+                            X509_STORE_add_cert(store, itmp->x509);
+                            found_certificate = true;
+                        }
+
+                        if (itmp->crl) {
+                            X509_STORE_add_crl(store, itmp->crl);
+                            *there_are_crls = 1;
+                        }
+                    }
+
+                    sk_X509_INFO_pop_free(info, X509_INFO_free);
+                    // At least one certificate was found !
+                    if (found_certificate) {
+                        BIO_free(bio);
+                        return store;
+                    }
+                }
+            }
+            BIO_free(bio);
+        }
+
+        X509_STORE_free(store);
+    }
+
+    return NULL;
+}
