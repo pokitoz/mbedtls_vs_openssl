@@ -35,4 +35,10 @@ void mbedtls_c_hmac_256(uint8_t* key_data,
 
 void mbedtls_gcm(void);
 
+int mbedtls_c_ecc_sign(const mbedtls_pk_context* private_key,
+                       unsigned char* input,
+                       size_t input_size,
+                       unsigned char* signature,
+                       size_t* signature_size);
+
 #endif /* MBEDTLS_CUSTOM_H */

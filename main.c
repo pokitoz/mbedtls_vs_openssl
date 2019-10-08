@@ -4,6 +4,8 @@
 #include <openssl/opensslv.h>
 #include <stdio.h>
 
+unsigned char data_to_be_signed[1024];
+
 uint8_t hmac_key_data[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
                         15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
                         28, 29, 30, 31};
@@ -79,7 +81,6 @@ static void openssl_tests(void)
 
     printf("Result verification certificate: %x\n", result_verify_cert);
 
-    unsigned char data_to_be_signed[1024];
     unsigned char data_signed[128];
     size_t size_data_signed = sizeof(data_signed);
     bool result_sign = openssl_sign_buffer_sha256(private_key,
@@ -157,6 +158,20 @@ void mbedtls_tests(void)
         printf("Certificate verified by CA.\n");
     } else {
         printf("Certificate could not be verified.\n");
+    }
+
+    unsigned char data_signed[128];
+    size_t data_signed_size = sizeof(data_signed);
+    int result_sign = mbedtls_c_ecc_sign(private_key,
+                                         data_to_be_signed,
+                                         sizeof(data_to_be_signed),
+                                         data_signed,
+                                         &data_signed_size);
+
+    if (result_sign == 0) {
+        printf("Signature of data using private key ok.\n");
+    } else {
+        printf("Signature of data using private key failed.\n");
     }
 
     uint8_t output[32];

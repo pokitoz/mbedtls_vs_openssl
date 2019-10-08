@@ -3,7 +3,11 @@
 #include <mbedtls/base64.h>
 #include <mbedtls/error.h>
 #include <mbedtls/gcm.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/sha256.h>
 #include <stdlib.h>
+#include <string.h>
 
 void mbedtls_c_print_opcode(void)
 {
@@ -395,3 +399,74 @@ void mbedtls_gcm(void)
 */
 
 }
+
+int mbedtls_c_ecc_sign(const mbedtls_pk_context* private_key,
+                       unsigned char* input,
+                       size_t input_size,
+                       unsigned char* signature,
+                       size_t* signature_size)
+{
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    int result = 0;
+    const char* pers = "ecda";
+
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+
+    result = mbedtls_ctr_drbg_seed(&ctr_drbg,
+                                mbedtls_entropy_func,
+                                &entropy,
+                                (const unsigned char*) pers,
+                                strlen(pers));
+    if(result != 0 ) {
+        printf( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", result);
+        return result;
+    }
+ 
+    mbedtls_ecdsa_context ecdsa;
+    mbedtls_ecdsa_init(&ecdsa);
+
+    mbedtls_ecp_keypair* key = private_key->pk_ctx;
+    result = mbedtls_ecdsa_from_keypair(&ecdsa, key);
+
+    unsigned char data_sha256[32] = {0};
+    mbedtls_sha256(input, input_size, data_sha256, 0);
+    result = mbedtls_ecdsa_write_signature(&ecdsa,
+                                           MBEDTLS_MD_SHA256,
+                                           data_sha256,
+                                           32,
+                                           signature,
+                                           signature_size,
+                                           mbedtls_ctr_drbg_random,
+                                           NULL);
+
+     if (result != 0) {
+         printf("Could not write signature.\n");
+         return result;
+     }
+
+    unsigned char bck = input[0];
+    /* Update one bit and make sure the signature does not work anymore ! */
+    input[0] = 5;
+    mbedtls_sha256(input, input_size, data_sha256, 0);
+    result = mbedtls_ecdsa_read_signature(&ecdsa, data_sha256, 32, signature, *signature_size);
+
+    if (result == 0) {
+        printf("Should not happen, signature is invalid for the given buffer\n");
+    	printf("Read = %d\n", result);
+        return result;
+    }
+
+    input[0] = bck;
+    mbedtls_sha256(input, input_size, data_sha256, 0);
+    result = mbedtls_ecdsa_read_signature(&ecdsa, data_sha256, 32, signature, *signature_size);
+    if (result != 0) {
+        printf("Should not happen, signature is valid for the given buffer\n");
+        printf("Read signature = %d\n", result);
+        return result;
+    }
+
+    return result;
+}
+
