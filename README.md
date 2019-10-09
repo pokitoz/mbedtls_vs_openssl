@@ -43,3 +43,11 @@ And the `openssl/include` folder must be included.
 
 Or use apt-get
 `sudo apt-get install libssl-dev`
+
+## Generate the files
+
+The program reads certificates that must be generated as follow:
+```bash
+cd certificates
+./generate_certificates.sh
+```
