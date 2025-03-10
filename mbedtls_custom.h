@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void mbedtls_c_print_opcode(void);
-
 void mbedtls_c_print(mbedtls_x509_crt* cert);
 
 mbedtls_pk_context* mbedtls_c_load_private_key(const char* filepath);
@@ -35,10 +33,14 @@ void mbedtls_c_hmac_256(uint8_t* key_data,
 
 void mbedtls_gcm(void);
 
-int mbedtls_c_ecc_sign(const mbedtls_pk_context* private_key,
+int mbedtls_c_ecc_sign(mbedtls_pk_context* private_key,
                        unsigned char* input,
                        size_t input_size,
                        unsigned char* signature,
                        size_t* signature_size);
+
+
+void mbedtls_c_init(void);
+void mbedtls_c_deinit(void);
 
 #endif /* MBEDTLS_CUSTOM_H */

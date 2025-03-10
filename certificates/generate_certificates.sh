@@ -1,6 +1,4 @@
-#!/bin/bash
-
-set -e
+#!/bin/bash -e
 
 TMP_FOLDER="`pwd`/tmp"
 

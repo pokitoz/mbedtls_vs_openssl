@@ -5,9 +5,9 @@ OPENSSL_FOLDER=$(shell pwd)/openssl
 
 MBEDTLS_INCLUDE=${MBEDTLS_FOLDER}/include
 MBEDTLS_LIBRARY=\
-	${MBEDTLS_FOLDER}/library/libmbedtls.a \
-    ${MBEDTLS_FOLDER}/library/libmbedx509.a \
-	${MBEDTLS_FOLDER}/library/libmbedcrypto.a
+	${MBEDTLS_FOLDER}/build/library/libmbedtls.a \
+    ${MBEDTLS_FOLDER}/build/library/libmbedx509.a \
+	${MBEDTLS_FOLDER}/build/library/libmbedcrypto.a
 
 OPENSSL_INCLUDE=${OPENSSL_FOLDER}/include
 OPENSSL_LIBRARY=\
@@ -27,6 +27,11 @@ C_SOURCE=\
 	main.c \
 	openssl_custom.c \
 	mbedtls_custom.c
+
+all: ${BINARY}
+
+cert:
+	cd certificates && ./generate_certificates.sh
 
 ${BINARY}: ${C_SOURCE}
 	gcc -I${MBEDTLS_INCLUDE} \

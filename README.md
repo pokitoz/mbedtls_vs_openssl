@@ -5,11 +5,14 @@ Comparison between OpenSSL and mbedTLS
 ## Get mbedTLS
 
 ```bash
-git clone https://github.com/ARMmbed/mbedtls.git -b mbedtls-2.1
-cd mbedtls
-mkdir build && cd build
-CFLAGS="-I$PWD/../.. -DMBEDTLS_CONFIG_FILE='<$PWD/../../config.h>'" cmake -DENABLE_TESTING=Off -DENABLE_PROGRAMS=Off ..
-make```
+git clone https://github.com/ARMmbed/mbedtls.git -b v3.6.2 --recurse-submodule && \
+  pushd mbedtls && \
+  mkdir build && cd build && \
+  CFLAGS="-I$PWD/../.. -DMBEDTLS_CONFIG_FILE='<$PWD/../../config.h>'" && \
+  cmake -DENABLE_TESTING=Off -DENABLE_PROGRAMS=Off .. && \
+  make -j4 && \
+  popd
+```
 
 The resulting libraries will be under `mbedtls/build/library`:
 - libmbedcrypto.a
@@ -30,10 +33,11 @@ sudo apt-get install libmbedcrypto1
 ## Get OpenSSL
 
 ```bash
-git clone https://github.com/openssl/openssl.git -b OpenSSL_1_0_2s
-cd openssl
-./config
-make
+git clone https://github.com/openssl/openssl.git -b openssl-3.4.1 && \
+  push openssl && \
+  ./config && \
+  make -j4 && \
+  popd
 ```
 The resulting libraries will be under `openssl`:
 - libssl.a
@@ -41,8 +45,7 @@ The resulting libraries will be under `openssl`:
 
 And the `openssl/include` folder must be included.
 
-Or use apt-get
-`sudo apt-get install libssl-dev`
+Or use apt-get `sudo apt-get install libssl-dev`
 
 ## Generate the files
 

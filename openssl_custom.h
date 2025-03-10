@@ -1,6 +1,7 @@
 #ifndef OPENSSL_CUSTOM_H
 #define OPENSSL_CUSTOM_H
 
+#include <openssl/opensslv.h>
 #include <openssl/x509.h>
 #include <stdint.h>
 #include <stdbool.h>

@@ -1,17 +1,27 @@
 #include "openssl_custom.h"
 #include "mbedtls_custom.h"
 
-#include <openssl/opensslv.h>
+#include <time.h>
 #include <stdio.h>
 
-unsigned char data_to_be_signed[1024];
+#define C_MAIN_CA_PATH "certificates/maincacert.pem"
+#define C_SIGNED_CERT_P1_PATH "certificates/p1signed.pem"
+#define C_PRIVATE_KEY_P1_PATH "certificates/p1privkey.pem"
 
-uint8_t hmac_key_data[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-                        15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-                        28, 29, 30, 31};
+static unsigned char data_to_be_signed[1024];
 
-uint8_t hmac_input[32] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static uint8_t hmac_key_data[32] = 
+{
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+    28, 29, 30, 31
+};
+
+static uint8_t hmac_input[32] = 
+{
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+};
 
 static void openssl_tests(void)
 {
@@ -23,36 +33,27 @@ static void openssl_tests(void)
     char ca_algo[128];
 
     X509* cert = NULL;
-	char cert_aglo[128];
+    char cert_aglo[128];
 
     EVP_PKEY* private_key = NULL;
-
     BUF_MEM* mem_cert = NULL;
-
     X509* cert_from_buffer = NULL;
 
-    ca = openssl_load_ca("certificates/maincacert.pem",
-                         &ca_has_crls,
-                         ca_sn,
-                         ca_algo);
+    ca = openssl_load_ca(C_MAIN_CA_PATH, &ca_has_crls, ca_sn, ca_algo);
 
     if (ca != NULL) {
-    	printf("CA: ca_has_crls %u. Subject: %s. Algo: %s\n",
-    	       ca_has_crls,
-    	       ca_sn,
-               ca_algo);
+        printf("CA: ca_has_crls %u. Subject: %s. Algo: %s\n",
+               ca_has_crls, ca_sn, ca_algo);
     } else {
         printf("Could not load CA.\n");
     }
 
-    cert = openssl_load_certificate("certificates/p1signed.pem");
+    cert = openssl_load_certificate(C_SIGNED_CERT_P1_PATH);
 
-	openssl_get_signature_algorithm(cert, cert_aglo);
-	printf("Certificate Algo: %s\n", cert_aglo);
+    openssl_get_signature_algorithm(cert, cert_aglo);
+    printf("Certificate Algo: %s\n", cert_aglo);
 
-    private_key = openssl_load_private_key(cert,
-                                           "certificates/p1privkey.pem",
-                                           NULL);
+    private_key = openssl_load_private_key(cert, C_PRIVATE_KEY_P1_PATH, NULL);
 
     if (private_key != NULL) {
         printf("private_key is initialized.\n");
@@ -84,10 +85,10 @@ static void openssl_tests(void)
     unsigned char data_signed[128];
     size_t size_data_signed = sizeof(data_signed);
     bool result_sign = openssl_sign_buffer_sha256(private_key,
-	                                              data_to_be_signed,
-	                                              sizeof(data_to_be_signed),
-	                                              data_signed,
-	                                              &size_data_signed);
+                                                  data_to_be_signed,
+                                                  sizeof(data_to_be_signed),
+                                                  data_signed,
+                                                  &size_data_signed);
 
     if (result_sign) {
         printf("Signature of data using private key ok.\n");
@@ -132,21 +133,23 @@ void mbedtls_tests(void)
     mbedtls_x509_crt* cert = NULL;
     mbedtls_pk_context* private_key = NULL;
 
-    ca = mbedtls_c_load_certificate("certificates/maincacert.pem", false);
+    mbedtls_c_init();
+
+    ca = mbedtls_c_load_certificate(C_MAIN_CA_PATH, false);
     if (ca != NULL) {
         printf("CA loaded.\n");
     } else {
         printf("CA could not be loaded.\n");
     }
 
-    cert = mbedtls_c_load_certificate("certificates/p1signed.pem", false);
+    cert = mbedtls_c_load_certificate(C_SIGNED_CERT_P1_PATH, false);
     if (cert != NULL) {
         printf("Certificate loaded.\n");
     } else {
         printf("Certificate could not be loaded.\n");
     }
 
-    private_key = mbedtls_c_load_private_key("certificates/p1privkey.pem");
+    private_key = mbedtls_c_load_private_key(C_PRIVATE_KEY_P1_PATH);
     if (private_key != NULL) {
         printf("private_key is initialized.\n");
     } else {
@@ -160,7 +163,7 @@ void mbedtls_tests(void)
         printf("Certificate could not be verified.\n");
     }
 
-    unsigned char data_signed[128];
+    unsigned char data_signed[MBEDTLS_PK_SIGNATURE_MAX_SIZE];
     size_t data_signed_size = sizeof(data_signed);
     int result_sign = mbedtls_c_ecc_sign(private_key,
                                          data_to_be_signed,
@@ -168,11 +171,22 @@ void mbedtls_tests(void)
                                          data_signed,
                                          &data_signed_size);
 
-    if (result_sign == 0) {
-        printf("Signature of data using private key ok.\n");
-    } else {
+    if (result_sign == 0)
+    {
+        printf("Signature of data using private key ok: ");
+
+        for (uint32_t i = 0; i < data_signed_size; i++)
+        {
+            printf("0x%x ", data_signed[i]);
+        }
+        printf("\n");
+
+    }
+    else
+    {
         printf("Signature of data using private key failed.\n");
     }
+
 
     uint8_t output[32];
     size_t output_size = 32;
@@ -185,15 +199,27 @@ void mbedtls_tests(void)
                        &output_size);
 
     printf("Authenticated data with HMAC:");
-    for (uint32_t i = 0; i < output_size; i++) {
+    for (uint32_t i = 0; i < output_size; i++)
+    {
         printf("0x%x ", output[i]);
     }
     printf("\n");
 
+
+    mbedtls_c_deinit();
 }
 
 int main(void)
 {
+    // Randomize data
+    time_t current_time = time(NULL);
+    srand((unsigned int) current_time);
+
+    for (size_t i = 0; i < sizeof(data_to_be_signed); i++)
+    {
+        data_to_be_signed[i] = rand();
+    }
+
     printf("===== OpenSSL =====\n");
     openssl_tests();
     printf("===== mbedTLS =====\n");

@@ -1,9 +1,12 @@
 #include "openssl_custom.h"
 #include <openssl/x509.h>
+#include <crypto/x509.h>
+#include <crypto/evp.h>
 #include <openssl/pem.h>
 #include <openssl/asn1.h>
 #include <openssl/asn1t.h>
 #include <openssl/objects.h>
+#include <openssl/types.h>
 
 #include <stdbool.h>
 #include <string.h>
@@ -12,11 +15,14 @@ X509* openssl_load_certificate(const char* cert_path)
 {
     X509* return_cert = NULL;
 
-    if (cert_path != NULL) {
+    if (cert_path != NULL)
+    {
         BIO* in = BIO_new(BIO_s_file());
 
-        if (in != NULL) {
-            if (BIO_read_filename(in, cert_path) > 0) {
+        if (in != NULL)
+        {
+            if (BIO_read_filename(in, cert_path) > 0) 
+            {
                 return_cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
             }
 
@@ -32,15 +38,18 @@ uint8_t openssl_get_signature_algorithm(X509* certificate,
 {
     uint8_t result = 0;
     BUF_MEM* mem = NULL;
-    X509_ALGOR* algo_structure = NULL;
+    const X509_ALGOR* algo_structure = NULL;
 
     BIO* bio = BIO_new(BIO_s_mem());
 
-    if ((bio != NULL) && (certificate != NULL)) {
+    if ((bio != NULL) && (certificate != NULL))
+    {
         X509_get0_signature(NULL, &algo_structure, certificate);
 
-        if (algo_structure != NULL) {
-            if (i2a_ASN1_OBJECT(bio, algo_structure->algorithm) > 0) {
+        if (algo_structure != NULL)
+        {
+            if (i2a_ASN1_OBJECT(bio, algo_structure->algorithm) > 0)
+            {
                 BIO_get_mem_ptr(bio, &mem);
 
                 if (mem != NULL) {
@@ -282,11 +291,7 @@ bool openssl_sign_buffer_sha256(EVP_PKEY* private_key,
         return success;
     }
 
-#if IS_OPENSSL_1_1
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-#else
-    EVP_MD_CTX* ctx = (EVP_MD_CTX*)malloc(sizeof(EVP_MD_CTX));
-#endif
 
     EVP_MD_CTX_init(ctx);
     EVP_PKEY_CTX* key;
@@ -301,12 +306,7 @@ bool openssl_sign_buffer_sha256(EVP_PKEY* private_key,
         }
     }
 
-#if IS_OPENSSL_1_1
     EVP_MD_CTX_free(ctx);
-#else
-    EVP_MD_CTX_cleanup(ctx);
-    free(ctx);
-#endif
 
     return success;
 }
@@ -322,12 +322,7 @@ bool openssl_verify_signature_sha256(X509* certificate,
         return success;
     }
 
-#if IS_OPENSSL_1_1
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-#else
-    EVP_MD_CTX* ctx = (EVP_MD_CTX*)malloc(sizeof(EVP_MD_CTX));
-#endif
-
     EVP_MD_CTX_init(ctx);
     EVP_PKEY* public_key = X509_get_pubkey(certificate);
 
@@ -358,13 +353,7 @@ bool openssl_verify_signature_sha256(X509* certificate,
         EVP_PKEY_free(public_key);
     }
 
-#if IS_OPENSSL_1_1
     EVP_MD_CTX_free(ctx);
-#else
-    EVP_MD_CTX_cleanup(ctx);
-    free(ctx);
-#endif
-
     return success;
 }
 
@@ -380,27 +369,15 @@ void openssl_hmac_256(uint8_t* key_data,
                                          key_data,
                                          key_data_size);
 
-#if IS_OPENSSL_1_1
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-#else
-    EVP_MD_CTX* ctx = (EVP_MD_CTX*)malloc(sizeof(EVP_MD_CTX));
-#endif
-
     EVP_MD_CTX_init(ctx);
     EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, key);
     EVP_DigestSignUpdate(ctx, input, input_size);
     EVP_DigestSignFinal(ctx, NULL, output_size);
     EVP_DigestSignFinal(ctx, output, output_size);
 
-#if IS_OPENSSL_1_1
     EVP_MD_CTX_free(ctx);
-#else
-    EVP_MD_CTX_cleanup(ctx);
-    free(ctx);
-#endif
-
     EVP_PKEY_free(key);
-
 }
 
 void openssl_print_sn(X509 *x)
@@ -427,8 +404,7 @@ void openssl_print_sn(X509 *x)
     for (int i = 0; i < X509_NAME_entry_count(cert_sn); i++) {
           X509_NAME_ENTRY *e = X509_NAME_get_entry(cert_sn, i);
         	ASN1_STRING *d = X509_NAME_ENTRY_get_data(e);
-        	unsigned char *str = ASN1_STRING_data(d);
-    	    printf("index=%d: %s\n", i, str);
+    	    printf("index=%d: %s\n", i, ASN1_STRING_get0_data(d));
     }
 
     unsigned char md[32];

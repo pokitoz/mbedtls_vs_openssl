@@ -6,38 +6,16 @@
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/sha256.h>
+#include <mbedtls/oid.h>
 #include <stdlib.h>
 #include <string.h>
 
-void mbedtls_c_print_opcode(void)
-{
-    char output[4096];
-    int test_code[] = {-15616,
-                       -52,
-                       0xffffd800,
-                       0xffffde80,
-                       0xffffd900,
-                       0xffffffcc};
-
-    for(int i = 0; i < sizeof(test_code) / sizeof(int); i++) {
-        mbedtls_strerror(test_code[i], output, 4096);
-        printf("%d == 0x%x : error value : %s\n", test_code[i],
-                                                  test_code[i],
-                                                  output);
-    }
-
-    int test_flags[] = {0x1c008};
-    for(int i = 0; i < sizeof(test_flags) / sizeof(int); i++) {
-        mbedtls_x509_crt_verify_info(output, 4096, NULL, test_flags[i]);
-        printf("%d == 0x%x : error value : %s\n", test_flags[i],
-                                                  test_flags[i],
-                                                  output);
-    }
-}
+static mbedtls_ctr_drbg_context ctr_drbg;
+static mbedtls_entropy_context entropy;
 
 void mbedtls_c_print(mbedtls_x509_crt* cert)
 {
-    char out_buffer[1024];
+    char out_buffer[2048];
 
     mbedtls_x509_crt_info(out_buffer, sizeof(out_buffer) - 1, "      ", cert);
     printf("Full certificate Dump:%s\n", out_buffer);
@@ -45,65 +23,77 @@ void mbedtls_c_print(mbedtls_x509_crt* cert)
     // Retrieve subject name for future use.
     mbedtls_x509_name* issuer = &cert->issuer;
     mbedtls_x509_dn_gets(out_buffer, sizeof(out_buffer) - 1, issuer);
-    printf("Issuer: %s\n", out_buffer);
+    printf("\tIssuer: %s\n", out_buffer);
 
     mbedtls_x509_name* subject_name = &cert->subject;
     // Use mbedtls_x509_dn_gets to get string format of _name structure
     mbedtls_x509_dn_gets(out_buffer, sizeof(out_buffer) - 1, subject_name);
-    printf("Subject_name: %s\n", out_buffer);
+    printf("\tSubject_name: %s\n", out_buffer);
 
     // Get the signature algorithm:
-    mbedtls_x509_buf* sig_oid = &cert->sig_oid;
-    mbedtls_x509_sig_alg_gets(out_buffer,
-                              sizeof(out_buffer) - 1 /* For \0 */,
-                              sig_oid,
-                              cert->sig_pk,
-                              cert->sig_md,
-                              cert->sig_opts );
-
-    printf("Signature algorithm: %s\n", out_buffer);
+    mbedtls_oid_get_sig_alg_desc(&cert->sig_oid, (const char**) &out_buffer);
+    printf("\tSignature algorithm: %s\n", out_buffer);
 }
 
 mbedtls_pk_context* mbedtls_c_load_private_key(const char* filepath)
 {
     mbedtls_pk_context* private_key = malloc(sizeof(mbedtls_pk_context));
-    if (private_key == NULL) {
+    if (private_key == NULL)
+    {
         return NULL;
     }
 
     mbedtls_pk_init(private_key);
 
-    if (mbedtls_pk_parse_keyfile(private_key, filepath, NULL) == 0) {
+    if (mbedtls_pk_parse_keyfile(private_key, filepath, NULL,
+                                 mbedtls_ctr_drbg_random, &ctr_drbg) == 0)
+    {
         return private_key;
     }
 
+    printf("Error load private key\n");
+
+    mbedtls_pk_free(private_key);
     free(private_key);
-    return NULL;
+    private_key = NULL;
+    return private_key;
 }
 
-mbedtls_x509_crt* mbedtls_c_load_certificate(const char* filepath, bool print)
-{
-    mbedtls_x509_crt* cert = malloc(sizeof(mbedtls_x509_crt));
-    mbedtls_x509_crt_init(cert);
 
-    if (mbedtls_x509_crt_parse_file(cert, filepath) == 0) {
-        mbedtls_x509_crt* cert_chain = cert;
-        if (print) {
-            while (cert_chain != NULL) {
-                mbedtls_c_print(cert_chain);
-                cert_chain = cert_chain->next;
-            }
-        }
-
-        if (cert->key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) {
-             printf("The certificate can sign\n");
-        }
-
-        return cert;
+mbedtls_x509_crt* mbedtls_c_load_certificate(const char* filepath, bool print) {
+    mbedtls_x509_crt* cert = (mbedtls_x509_crt*)malloc(sizeof(mbedtls_x509_crt));
+    if (cert == NULL) {
+        printf("Memory allocation failed.\n");
+        return NULL;
     }
 
-    free(cert);
-    return NULL;
+    mbedtls_x509_crt_init(cert);
+
+    // Parse the certificate file
+    int ret = mbedtls_x509_crt_parse_file(cert, filepath);
+    if (ret != 0) {
+        printf("Failed to parse certificate file. Error code: -0x%04X\n", -ret);
+        mbedtls_x509_crt_free(cert);
+        free(cert);
+        return NULL;
+    }
+
+    // Print the certificate chain if requested
+    if (print) {
+        mbedtls_x509_crt* cert_chain = cert;
+        while (cert_chain != NULL) {
+            mbedtls_c_print(cert_chain);  // Assuming this is a custom function to print the certificate
+            cert_chain = cert_chain->next;
+        }
+    }
+
+    // Check if the certificate can sign other certificates
+    if (mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0) 
+    {
+        printf("The certificate can sign other certificates.\n");
+    }
+
+    return cert;
 }
 
 mbedtls_x509_crt* mbedtls_c_load_buffer(const unsigned char* buffer,
@@ -179,15 +169,12 @@ int mbedtls_c_verify_certificate(mbedtls_x509_crt* cert,
     int result = 0;
     uint32_t flags = 0;
 
-    result = mbedtls_x509_crt_verify(cert,
-                                     ca,
-                                     crl,
-                                     NULL,
-                                     &flags,
-                                     NULL,
-                                     NULL);
+    result = mbedtls_x509_crt_verify(cert, ca, crl,
+                                     NULL, &flags,
+                                     NULL, NULL);
 
-    if((result != 0) || (flags != 0)) {
+    if((result != 0) || (flags == -1))
+    {
         char output_error[4096];
         printf("Verification failed: ");
         mbedtls_x509_crt_verify_info(output_error,
@@ -201,18 +188,16 @@ int mbedtls_c_verify_certificate(mbedtls_x509_crt* cert,
   return result;
 }
 
-void mbedtls_c_hmac_256(uint8_t* key_data,
-                  size_t key_data_size,
-                  uint8_t* input,
-                  size_t input_size,
-                  uint8_t* output,
-                  size_t* output_size)
+void mbedtls_c_hmac_256(uint8_t* key_data, size_t key_data_size,
+                        uint8_t* input, size_t input_size,
+                        uint8_t* output, size_t* output_size)
 {
     if ((key_data == NULL) &&
         (input == NULL) &&
         (output == NULL) &&
         (output_size == NULL)) {
 
+        printf("Bad argument");
         return;
     }
 
@@ -230,6 +215,9 @@ void mbedtls_c_hmac_256(uint8_t* key_data,
 
 void mbedtls_gcm(void)
 {
+
+    
+/*
     uint8_t data_out[100] = {0};
     uint8_t data_out2[100] = {0};
     uint32_t data_out_size = sizeof(data_out);
@@ -280,7 +268,6 @@ void mbedtls_gcm(void)
 
     mbedtls_gcm_context aes;
 
-/*
     // init the context...
     mbedtls_gcm_init( &aes );
     // Set the key. This next line could have CAMELLIA or ARIA as our GCM mode cipher...
@@ -309,7 +296,7 @@ void mbedtls_gcm(void)
         printf("%02x ", (int)tag[i]);
         //tag[i] = 0;
     }
-*/
+
     printf("\n");    printf("\n");
 
     printf("[i] mbedtls_gcm_auth_encrypt:");
@@ -357,7 +344,7 @@ void mbedtls_gcm(void)
                         key_data_size * 8);
 
     mbedtls_gcm_auth_decrypt(&aes,
-	                         data_in_size /*length*/,
+	                         data_in_size, // length
 	                         iv,
 	                         iv_size,
 	                         NULL,
@@ -379,6 +366,10 @@ void mbedtls_gcm(void)
     }
 
     printf("\n");    printf("\n");
+
+
+    */
+
     
 /*
     printf("[i] Decrypted from buffer:");
@@ -400,67 +391,45 @@ void mbedtls_gcm(void)
 
 }
 
-int mbedtls_c_ecc_sign(const mbedtls_pk_context* private_key,
-                       unsigned char* input,
-                       size_t input_size,
-                       unsigned char* signature,
-                       size_t* signature_size)
+int mbedtls_c_ecc_sign(mbedtls_pk_context* private_key,
+                       unsigned char* input, size_t input_size,
+                       unsigned char* signature, size_t* signature_size)
 {
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
     int result = 0;
-    const char* pers = "ecda";
+    unsigned char data_sha256[MBEDTLS_PK_SIGNATURE_MAX_SIZE] = {0};
 
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
-
-    result = mbedtls_ctr_drbg_seed(&ctr_drbg,
-                                mbedtls_entropy_func,
-                                &entropy,
-                                (const unsigned char*) pers,
-                                strlen(pers));
-    if(result != 0 ) {
-        printf( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", result);
-        return result;
+    if (private_key == NULL)
+    {
+        printf("private_key is NULL\n");
+        return -1;
     }
- 
-    mbedtls_ecdsa_context ecdsa;
-    mbedtls_ecdsa_init(&ecdsa);
 
-    mbedtls_ecp_keypair* key = private_key->pk_ctx;
-    result = mbedtls_ecdsa_from_keypair(&ecdsa, key);
-
-    unsigned char data_sha256[32] = {0};
+    // Compute SHA-256 of input
     mbedtls_sha256(input, input_size, data_sha256, 0);
-    result = mbedtls_ecdsa_write_signature(&ecdsa,
-                                           MBEDTLS_MD_SHA256,
-                                           data_sha256,
-                                           32,
-                                           signature,
-                                           signature_size,
-                                           mbedtls_ctr_drbg_random,
-                                           NULL);
+    
+    // Ensure private_key is an ECDSA key
+    if (!mbedtls_pk_can_do(private_key, MBEDTLS_PK_ECDSA)) {
+        printf("Error: Not an ECDSA key.\n");
+        return -1;
+    }
 
-     if (result != 0) {
-         printf("Could not write signature.\n");
-         return result;
-     }
-
-    unsigned char bck = input[0];
-    /* Update one bit and make sure the signature does not work anymore ! */
-    input[0] = 5;
-    mbedtls_sha256(input, input_size, data_sha256, 0);
-    result = mbedtls_ecdsa_read_signature(&ecdsa, data_sha256, 32, signature, *signature_size);
-
-    if (result == 0) {
-        printf("Should not happen, signature is invalid for the given buffer\n");
-    	printf("Read = %d\n", result);
+    // Sign the hash using ECDSA
+    result = mbedtls_pk_sign(private_key,
+                             MBEDTLS_MD_SHA256,
+                             data_sha256, sizeof(data_sha256),
+                             signature, *signature_size, signature_size,
+                             mbedtls_ctr_drbg_random, &ctr_drbg);
+    
+    if (result != 0) {
+        printf("Could not write signature. Error code: %d\n", result);
         return result;
     }
 
-    input[0] = bck;
+    // Verify
     mbedtls_sha256(input, input_size, data_sha256, 0);
-    result = mbedtls_ecdsa_read_signature(&ecdsa, data_sha256, 32, signature, *signature_size);
+    result = mbedtls_pk_verify(private_key, MBEDTLS_MD_SHA256, 
+                               data_sha256, sizeof(data_sha256), 
+                               signature, *signature_size);
     if (result != 0) {
         printf("Should not happen, signature is valid for the given buffer\n");
         printf("Read signature = %d\n", result);
@@ -470,3 +439,25 @@ int mbedtls_c_ecc_sign(const mbedtls_pk_context* private_key,
     return result;
 }
 
+void mbedtls_c_init(void)
+{
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+
+    const char* pers = "ecda";
+    int result = mbedtls_ctr_drbg_seed(&ctr_drbg,
+                                       mbedtls_entropy_func,
+                                       &entropy,
+                                       (const unsigned char*) pers,
+                                       strlen(pers));
+    if(result != 0 ) {
+        printf( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", result);
+    }
+
+}
+
+void mbedtls_c_deinit(void)
+{
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+}
