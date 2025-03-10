@@ -33,6 +33,9 @@ all: ${BINARY}
 cert:
 	cd certificates && ./generate_certificates.sh
 
+format:
+	clang-format -style=llvm mbedtls_custom.* openssl_custom.* main.c -i
+
 ${BINARY}: ${C_SOURCE}
 	gcc -I${MBEDTLS_INCLUDE} \
 		-I${OPENSSL_INCLUDE} \
