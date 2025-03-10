@@ -17,7 +17,7 @@ void mbedtls_c_print(mbedtls_x509_crt *cert) {
   char out_buffer[2048];
 
   mbedtls_x509_crt_info(out_buffer, sizeof(out_buffer) - 1, "      ", cert);
-  printf("Full certificate Dump:%s\n", out_buffer);
+  printf("Full certificate Dump: %s\n", out_buffer);
 
   // Retrieve subject name for future use.
   mbedtls_x509_name *issuer = &cert->issuer;
@@ -34,24 +34,60 @@ void mbedtls_c_print(mbedtls_x509_crt *cert) {
   printf("\tSignature algorithm: %s\n", out_buffer);
 }
 
+void mbedtls_c_free_key(mbedtls_pk_context **key) {
+  if (*key) {
+    mbedtls_pk_free(*key);
+    free(*key);
+    *key = NULL;
+  }
+}
+
+void mbedtls_c_free_crt(mbedtls_x509_crt **crt) {
+  if (*crt) {
+    mbedtls_x509_crt_free(*crt);
+    free(*crt);
+    *crt = NULL;
+  }
+}
+
 mbedtls_pk_context *mbedtls_c_load_private_key(const char *filepath) {
+
   mbedtls_pk_context *private_key = malloc(sizeof(mbedtls_pk_context));
-  if (private_key == NULL) {
-    return NULL;
+  int status = -1;
+
+  for (;;) {
+    if (private_key == NULL) {
+      break;
+    }
+
+    mbedtls_pk_init(private_key);
+
+    status = mbedtls_pk_parse_keyfile(private_key, filepath, NULL,
+                                      mbedtls_ctr_drbg_random, &ctr_drbg);
+
+    if (status != 0) {
+      printf("Error: on private key parse\n");
+      status = -1;
+      break;
+    }
+
+    // Ensure private_key is an ECDSA key
+    status = mbedtls_pk_can_do(private_key, MBEDTLS_PK_ECDSA);
+    if (status != 1) {
+      printf("Error: Not an ECDSA key.\n");
+      status = -1;
+      break;
+    }
+
+    status = 0;
+    break;
   }
 
-  mbedtls_pk_init(private_key);
-
-  if (mbedtls_pk_parse_keyfile(private_key, filepath, NULL,
-                               mbedtls_ctr_drbg_random, &ctr_drbg) == 0) {
-    return private_key;
+  if (status != 0) {
+    printf("Error load private key\n");
+    mbedtls_c_free_key(&private_key);
   }
 
-  printf("Error load private key\n");
-
-  mbedtls_pk_free(private_key);
-  free(private_key);
-  private_key = NULL;
   return private_key;
 }
 
@@ -68,8 +104,7 @@ mbedtls_x509_crt *mbedtls_c_load_certificate(const char *filepath, bool print) {
   int ret = mbedtls_x509_crt_parse_file(cert, filepath);
   if (ret != 0) {
     printf("Failed to parse certificate file. Error code: -0x%04X\n", -ret);
-    mbedtls_x509_crt_free(cert);
-    free(cert);
+    mbedtls_c_free_crt(&cert);
     return NULL;
   }
 
@@ -111,7 +146,7 @@ mbedtls_x509_crt *mbedtls_c_load_buffer(const unsigned char *buffer,
   }
 
   printf("Invalid buffer read: 0x%x\n", return_value);
-  free(cert);
+  mbedtls_c_free_crt(&cert);
   return NULL;
 }
 
@@ -171,20 +206,11 @@ void mbedtls_c_hmac_256(uint8_t *key_data, size_t key_data_size, uint8_t *input,
   if ((key_data == NULL) && (input == NULL) && (output == NULL) &&
       (output_size == NULL)) {
 
-    printf("Bad argument");
-    return;
+    printf("Bad argument\n");
+  } else {
+    mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), key_data,
+                    key_data_size, input, input_size, output);
   }
-
-  mbedtls_md_context_t ctx;
-  mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
-
-  mbedtls_md_init(&ctx);
-  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
-  mbedtls_md_hmac_starts(&ctx, key_data, key_data_size);
-  mbedtls_md_hmac_update(&ctx, input, input_size);
-  mbedtls_md_hmac_finish(&ctx, output);
-
-  mbedtls_md_free(&ctx);
 }
 
 void mbedtls_gcm(void) {
@@ -364,7 +390,7 @@ int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key, unsigned char *input,
                        size_t input_size, unsigned char *signature,
                        size_t *signature_size) {
   int result = 0;
-  unsigned char data_sha256[MBEDTLS_PK_SIGNATURE_MAX_SIZE] = {0};
+  unsigned char data_sha256[32] = {0};
 
   if (private_key == NULL) {
     printf("private_key is NULL\n");
@@ -374,13 +400,7 @@ int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key, unsigned char *input,
   // Compute SHA-256 of input
   mbedtls_sha256(input, input_size, data_sha256, 0);
 
-  // Ensure private_key is an ECDSA key
-  if (!mbedtls_pk_can_do(private_key, MBEDTLS_PK_ECDSA)) {
-    printf("Error: Not an ECDSA key.\n");
-    return -1;
-  }
-
-  // Sign the hash using ECDSA
+  // Sign the hash using private key
   result = mbedtls_pk_sign(private_key, MBEDTLS_MD_SHA256, data_sha256,
                            sizeof(data_sha256), signature, *signature_size,
                            signature_size, mbedtls_ctr_drbg_random, &ctr_drbg);
@@ -389,6 +409,8 @@ int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key, unsigned char *input,
     printf("Could not write signature. Error code: %d\n", result);
     return result;
   }
+
+  return 0;
 
   // Verify
   mbedtls_sha256(input, input_size, data_sha256, 0);

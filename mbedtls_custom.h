@@ -1,6 +1,7 @@
 #ifndef MBEDTLS_CUSTOM_H
 #define MBEDTLS_CUSTOM_H
 
+#include <mbedtls/pk.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <stdbool.h>
@@ -33,5 +34,7 @@ int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key, unsigned char *input,
 
 void mbedtls_c_init(void);
 void mbedtls_c_deinit(void);
+void mbedtls_c_free_crt(mbedtls_x509_crt **crt);
+void mbedtls_c_free_key(mbedtls_pk_context **key);
 
 #endif /* MBEDTLS_CUSTOM_H */

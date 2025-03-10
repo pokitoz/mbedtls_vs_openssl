@@ -1,3 +1,7 @@
+
+DEBUG := 0
+include option.mk
+
 BINARY=main
 
 MBEDTLS_FOLDER=$(shell pwd)/mbedtls
@@ -14,19 +18,12 @@ OPENSSL_LIBRARY=\
 	${OPENSSL_FOLDER}/libssl.a \
 	${OPENSSL_FOLDER}/libcrypto.a
 
-CFLAGS=\
-	-Wall \
-	-g3 \
-	-std=c99
-
-LFLAGS=\
-	-ldl \
-	-lz
-
 C_SOURCE=\
 	main.c \
 	openssl_custom.c \
-	mbedtls_custom.c
+	openssl_custom.h \
+	mbedtls_custom.c \
+	mbedtls_custom.h
 
 all: ${BINARY}
 

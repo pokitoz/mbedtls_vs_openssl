@@ -103,7 +103,7 @@ X509_STORE *openssl_load_ca(const char *ca_path, uint8_t *there_are_crls,
                   char *ca_sn_str = X509_NAME_oneline(ca_sn_struct, 0, 0);
 
                   if (ca_sn_str != NULL) {
-                    strncpy(ca_sn, ca_sn_str, strlen(ca_sn_str) + 1);
+                    strncpy(ca_sn, ca_sn_str, strlen(ca_sn) + 1);
 
                     OPENSSL_free(ca_sn_str);
                   }
@@ -322,18 +322,23 @@ bool openssl_verify_signature_sha256(X509 *certificate,
 
 void openssl_hmac_256(uint8_t *key_data, size_t key_data_size, uint8_t *input,
                       size_t input_size, uint8_t *output, size_t *output_size) {
+
+  if ((key_data == NULL) && (input == NULL) && (output == NULL) &&
+      (output_size == NULL)) {
+    printf("Error in args\n");
+  }
+
   EVP_PKEY *key =
       EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key_data, key_data_size);
+  if (key) {
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    (void)(EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, key) &&
+           EVP_DigestSignUpdate(ctx, input, input_size) &&
+           EVP_DigestSignFinal(ctx, output, output_size));
 
-  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-  EVP_MD_CTX_init(ctx);
-  EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, key);
-  EVP_DigestSignUpdate(ctx, input, input_size);
-  EVP_DigestSignFinal(ctx, NULL, output_size);
-  EVP_DigestSignFinal(ctx, output, output_size);
-
-  EVP_MD_CTX_free(ctx);
-  EVP_PKEY_free(key);
+    EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(key);
+  }
 }
 
 void openssl_print_sn(X509 *x) {
