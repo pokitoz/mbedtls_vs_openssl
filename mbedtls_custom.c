@@ -1,5 +1,8 @@
 #include "mbedtls_custom.h"
 #include "config.h"
+#include "timer.h"
+#include "utils.h"
+
 #include <mbedtls/base64.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
@@ -200,9 +203,9 @@ int mbedtls_c_verify_certificate(mbedtls_x509_crt *cert, mbedtls_x509_crt *ca,
   return result;
 }
 
-void mbedtls_c_hmac_256(uint8_t *key_data, size_t key_data_size, uint8_t *input,
-                        size_t input_size, uint8_t *output,
-                        size_t *output_size) {
+void mbedtls_c_hmac_256(const uint8_t *key_data, size_t key_data_size,
+                        const uint8_t *input, size_t input_size,
+                        uint8_t *output, size_t *output_size) {
   if ((key_data == NULL) && (input == NULL) && (output == NULL) &&
       (output_size == NULL)) {
 
@@ -386,9 +389,9 @@ void mbedtls_gcm(void) {
   */
 }
 
-int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key, unsigned char *input,
-                       size_t input_size, unsigned char *signature,
-                       size_t *signature_size) {
+int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key,
+                       const unsigned char *input, size_t input_size,
+                       unsigned char *signature, size_t *signature_size) {
   int result = 0;
   unsigned char data_sha256[32] = {0};
 
@@ -398,7 +401,7 @@ int mbedtls_c_ecc_sign(mbedtls_pk_context *private_key, unsigned char *input,
   }
 
   // Compute SHA-256 of input
-  mbedtls_sha256(input, input_size, data_sha256, 0);
+  mbedtls_sha256(input, input_size, data_sha256, false);
 
   // Sign the hash using private key
   result = mbedtls_pk_sign(private_key, MBEDTLS_MD_SHA256, data_sha256,
@@ -440,4 +443,114 @@ void mbedtls_c_init(void) {
 void mbedtls_c_deinit(void) {
   mbedtls_ctr_drbg_free(&ctr_drbg);
   mbedtls_entropy_free(&entropy);
+}
+
+TTimerResult mbedtls_tests(
+    const char *ca_path, const char *cert_p1_path, const char *private_p1_path,
+    const uint32_t iteration, const uint8_t *hmac_key_data,
+    const uint32_t hmac_key_data_size, const uint8_t *hmac_input,
+    const uint32_t hmac_input_size, const uint8_t *hmac_expected_result,
+    const uint32_t hmac_expected_result_size, const uint8_t *data_to_be_signed,
+    const uint32_t data_to_be_signed_size) {
+  TTimerResult result = {};
+
+  mbedtls_x509_crt *ca = NULL;
+  mbedtls_x509_crt *cert = NULL;
+  mbedtls_pk_context *private_key = NULL;
+
+  for (;;) {
+    mbedtls_c_init();
+
+    C_TIMER_CLOCK(ca = mbedtls_c_load_certificate(ca_path, true),
+                  result.time_spent_ca_load);
+    if (ca == NULL) {
+      printf("CA could not be loaded.\n");
+      break;
+    }
+
+    printf("CA loaded.\n");
+
+    C_TIMER_CLOCK(cert = mbedtls_c_load_certificate(cert_p1_path, true),
+                  result.time_spent_cert_load);
+    if (cert == NULL) {
+      printf("Certificate could not be loaded.\n");
+      break;
+    }
+
+    printf("Certificate loaded.\n");
+
+    C_TIMER_CLOCK(private_key = mbedtls_c_load_private_key(private_p1_path),
+                  result.time_spent_key_load);
+    if (private_key == NULL) {
+      printf("private_key is not initilazed.\n");
+      break;
+    }
+
+    printf("private_key is initialized.\n");
+
+    int status = mbedtls_c_verify_certificate(cert, ca, NULL);
+    if (status != 0) {
+      printf("Certificate could not be verified.\n");
+      break;
+    }
+
+    printf("Certificate verified by CA.\n");
+
+    unsigned char *data_signed = malloc(data_to_be_signed_size);
+    size_t data_signed_size = data_to_be_signed_size;
+
+    for (int i = 0; i < iteration; i++) {
+      C_TIMER_CLOCK(mbedtls_c_ecc_sign(private_key, data_to_be_signed,
+                                       data_to_be_signed_size, data_signed,
+                                       &data_signed_size),
+                    result.time_spent_sign);
+      data_signed_size = data_to_be_signed_size;
+    }
+    result.time_spent_sign = result.time_spent_sign / iteration;
+    printf("Average signature speed %lf\n", result.time_spent_sign);
+
+    status = mbedtls_c_ecc_sign(private_key, data_to_be_signed,
+                                data_to_be_signed_size, data_signed,
+                                &data_signed_size);
+
+    if (status != 0) {
+      printf("Signature of data using private key failed.\n");
+      break;
+    }
+
+    printf("Signature of data using private key ok: ");
+    ARRAY_PRINT_SIZE_BYTES(data_signed, data_signed_size);
+    free(data_signed);
+
+    uint8_t output[32] = {0};
+    size_t output_size = ARRAY_SIZE(output);
+
+    for (int i = 0; i < iteration; i++) {
+      C_TIMER_CLOCK(mbedtls_c_hmac_256(hmac_key_data, hmac_key_data_size,
+                                       hmac_input, hmac_input_size, output,
+                                       &output_size),
+                    result.time_spent_hmac);
+    }
+    result.time_spent_hmac = result.time_spent_hmac / iteration;
+    printf("Average HMAC speed %lf\n", result.time_spent_hmac);
+
+    printf("Authenticated data with HMAC:");
+    ARRAY_PRINT_SIZE_BYTES(output, output_size);
+
+    // compare
+    if (memcmp(output, hmac_expected_result, hmac_expected_result_size) != 0) {
+      printf("!!! Error, not correct value !!!\n");
+      break;
+    }
+
+    break;
+  }
+
+  mbedtls_c_free_key(&private_key);
+  mbedtls_c_free_crt(&cert);
+  mbedtls_c_free_crt(&ca);
+
+  mbedtls_c_deinit();
+
+  return result;
 }

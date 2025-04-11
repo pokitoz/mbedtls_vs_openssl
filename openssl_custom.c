@@ -1,4 +1,7 @@
 #include "openssl_custom.h"
+#include "timer.h"
+#include "utils.h"
+
 #include <crypto/evp.h>
 #include <crypto/x509.h>
 #include <openssl/asn1.h>
@@ -240,7 +243,6 @@ bool openssl_store_in_buffer(X509 *certificate, BUF_MEM **output) {
         (void)BIO_set_close(bio, BIO_NOCLOSE);
         success = true;
       }
-
     } else {
       printf("Store in buffer failed.\n");
     }
@@ -320,8 +322,9 @@ bool openssl_verify_signature_sha256(X509 *certificate,
   return success;
 }
 
-void openssl_hmac_256(uint8_t *key_data, size_t key_data_size, uint8_t *input,
-                      size_t input_size, uint8_t *output, size_t *output_size) {
+void openssl_hmac_256(const uint8_t *key_data, size_t key_data_size,
+                      const uint8_t *input, size_t input_size, uint8_t *output,
+                      size_t *output_size) {
 
   if ((key_data == NULL) && (input == NULL) && (output == NULL) &&
       (output_size == NULL)) {
@@ -380,4 +383,145 @@ void openssl_print_sn(X509 *x) {
   for (int i = 0; i < length_sha; i++) {
     printf("0x%x, ", md[i]);
   }
+}
+
+TTimerResult openssl_tests(
+    const char *ca_path, const char *cert_p1_path, const char *private_p1_path,
+    const uint32_t iteration, const uint8_t *hmac_key_data,
+    const uint32_t hmac_key_data_size, const uint8_t *hmac_input,
+    const uint32_t hmac_input_size, const uint8_t *hmac_expected_result,
+    const uint32_t hmac_expected_result_size, const uint8_t *data_to_be_signed,
+    const uint32_t data_to_be_signed_size) {
+  TTimerResult result = {};
+
+  X509_STORE *ca = NULL;
+  uint8_t ca_has_crls;
+  char ca_sn[1024];
+  char ca_algo[128];
+
+  X509 *cert = NULL;
+  char cert_aglo[128];
+
+  EVP_PKEY *private_key = NULL;
+  BUF_MEM *mem_cert = NULL;
+  X509 *cert_from_buffer = NULL;
+
+  for (;;) {
+
+    if (OpenSSL_add_all_algorithms() != 1) {
+      printf("OpenSSL error\n");
+      break;
+    }
+
+    C_TIMER_CLOCK(ca = openssl_load_ca(ca_path, &ca_has_crls, ca_sn, ca_algo),
+                  result.time_spent_ca_load);
+
+    if (ca == NULL) {
+      printf("Could not load CA.\n");
+      break;
+    }
+
+    printf("CA: ca_has_crls %u. Subject: %s. Algo: %s\n", ca_has_crls, ca_sn,
+           ca_algo);
+
+    C_TIMER_CLOCK(cert = openssl_load_certificate(cert_p1_path),
+                  result.time_spent_cert_load);
+
+    openssl_get_signature_algorithm(cert, cert_aglo);
+    printf("Certificate Algo: %s\n", cert_aglo);
+
+    C_TIMER_CLOCK(private_key =
+                      openssl_load_private_key(cert, private_p1_path, NULL),
+                  result.time_spent_key_load);
+
+    if (private_key == NULL) {
+      printf("private_key is not initilized.\n");
+      break;
+    }
+
+    printf("private_key is initialized.\n");
+
+    mem_cert = BUF_MEM_new();
+    bool store_result = openssl_store_in_buffer(cert, &mem_cert);
+    if (!store_result) {
+      printf("Could not store certificate to buffer.\n");
+      break;
+    }
+
+    printf("Store to buffer ok.\n");
+
+    cert_from_buffer = openssl_load_buffer(mem_cert->data, mem_cert->length);
+    if (cert_from_buffer == NULL) {
+      printf("Could not load certificate from buffer.\n");
+      break;
+    }
+
+    printf("Buffer loaded to certificate.\n");
+
+    uint8_t result_verify_cert =
+        openssl_verify_certificate(ca, cert, ca_has_crls);
+
+    printf("Result verification certificate: %x\n", result_verify_cert);
+
+    unsigned char *data_signed = malloc(data_to_be_signed_size);
+    size_t size_data_signed = 0;
+
+    for (int i = 0; i < iteration; i++) {
+      C_TIMER_CLOCK(openssl_sign_buffer_sha256(private_key, data_to_be_signed,
+                                               data_to_be_signed_size,
+                                               data_signed, &size_data_signed),
+                    result.time_spent_sign);
+    }
+    result.time_spent_sign = result.time_spent_sign / iteration;
+    printf("Average signature speed %lf\n", result.time_spent_sign);
+
+    bool result_sign = openssl_sign_buffer_sha256(
+        private_key, data_to_be_signed, data_to_be_signed_size, data_signed,
+        &size_data_signed);
+
+    if (!result_sign) {
+      printf("Signature of data using private key failed.\n");
+      break;
+    }
+
+    printf("Signature of data using private key ok: ");
+    ARRAY_PRINT_SIZE_BYTES(data_signed, size_data_signed);
+
+    bool result_verify_data = openssl_verify_signature_sha256(
+        cert, data_to_be_signed, data_to_be_signed_size, data_signed,
+        size_data_signed);
+
+    if (!result_verify_data) {
+      printf("Verification of data using public key failed.\n");
+      break;
+    }
+
+    free(data_signed);
+
+    uint8_t output[32];
+    size_t output_size = ARRAY_SIZE(output);
+
+    for (int i = 0; i < iteration; i++) {
+      C_TIMER_CLOCK(openssl_hmac_256(hmac_key_data, hmac_key_data_size,
+                                     hmac_input, hmac_input_size, output,
+                                     &output_size),
+                    result.time_spent_hmac);
+      output_size = ARRAY_SIZE(output);
+    }
+    result.time_spent_hmac = result.time_spent_hmac / iteration;
+    printf("Average HMAC speed %lf\n", result.time_spent_hmac);
+
+    printf("Authenticated data with HMAC:");
+    ARRAY_PRINT_SIZE_BYTES(output, output_size);
+
+    // compare
+    if (memcmp(output, hmac_expected_result, hmac_expected_result_size) != 0) {
+      printf("!!! Error, not correct value !!!\n");
+      break;
+    }
+
+    break;
+  }
+
+  return result;
 }

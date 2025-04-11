@@ -1,5 +1,6 @@
 
 DEBUG := 0
+# CFLAGS / LFLAGS
 include option.mk
 
 BINARY=main
@@ -18,26 +19,41 @@ OPENSSL_LIBRARY=\
 	${OPENSSL_FOLDER}/libssl.a \
 	${OPENSSL_FOLDER}/libcrypto.a
 
-C_SOURCE=\
+C_SRCS=\
 	main.c \
 	openssl_custom.c \
-	openssl_custom.h \
-	mbedtls_custom.c \
-	mbedtls_custom.h
+	mbedtls_custom.c
 
 all: ${BINARY}
+setup: setup_mbed setup_openssl setup_cert
 
-cert:
-	cd certificates && ./generate_certificates.sh
+setup_mbed: 
+	cd mbedtls && \
+	git submodule update --init --recursive && \
+	mkdir -p build && \
+	cd build && \
+	CFLAGS="-I${PWD}/../../mbedconfig -DMBEDTLS_CONFIG_FILE='<${PWD}/../../mbedconfig/config.h>'" && \
+	cmake -DENABLE_TESTING=Off -DENABLE_PROGRAMS=Off .. && \
+	make -j4
+
+setup_openssl:
+	cd openssl && \
+	./config && \
+	make -j4
+
+setup_cert:
+	cd certificates && \
+	./generate_certificates.sh
 
 format:
-	clang-format -style=llvm mbedtls_custom.* openssl_custom.* main.c -i
+	clang-format -style=llvm mbedtls_custom.* openssl_custom.* *.h main.c -i
 
-${BINARY}: ${C_SOURCE}
+${BINARY}: ${C_SRCS}
 	gcc -I${MBEDTLS_INCLUDE} \
 		-I${OPENSSL_INCLUDE} \
+		-I./mbedconfig \
 		${CFLAGS} \
-		${C_SOURCE} \
+		${C_SRCS} \
 		-o $@ \
 		${OPENSSL_LIBRARY} \
 		${MBEDTLS_LIBRARY} \
@@ -45,3 +61,5 @@ ${BINARY}: ${C_SOURCE}
 
 clean:
 	rm ${BINARY}
+
+.PHONY: clean setup setup_mbed setup_openssl format cert all

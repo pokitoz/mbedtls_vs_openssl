@@ -1,0 +1,6 @@
+[submodule "mbedtls"]
+	path = mbedtls
+	url = https://github.com/ARMmbed/mbedtls.git
+[submodule "openssl"]
+	path = openssl
+	url = https://github.com/openssl/openssl.git

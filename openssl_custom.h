@@ -1,5 +1,6 @@
-#ifndef OPENSSL_CUSTOM_H
-#define OPENSSL_CUSTOM_H
+#pragma once
+
+#include "timer.h"
 
 #include <openssl/opensslv.h>
 #include <openssl/x509.h>
@@ -36,8 +37,16 @@ bool openssl_verify_signature_sha256(X509 *certificate,
                                      const unsigned char *signature,
                                      size_t size);
 
-void openssl_hmac_256(uint8_t *key_data, size_t key_data_size, uint8_t *input,
-                      size_t input_size, uint8_t *output, size_t *output_size);
+void openssl_hmac_256(const uint8_t *key_data, size_t key_data_size,
+                      const uint8_t *input, size_t input_size, uint8_t *output,
+                      size_t *output_size);
 
 void openssl_print_sn(X509 *x);
-#endif /* OPENSSL_CUSTOM_H */
+
+TTimerResult openssl_tests(
+    const char *ca_path, const char *cert_p1_path, const char *private_p1_path,
+    const uint32_t iteration, const uint8_t *hmac_key_data,
+    const uint32_t hmac_key_data_size, const uint8_t *hmac_input,
+    const uint32_t hmac_input_size, const uint8_t *hmac_expected_result,
+    const uint32_t hmac_expected_result_size, const uint8_t *data_to_be_signed,
+    const uint32_t data_to_be_signed_size);

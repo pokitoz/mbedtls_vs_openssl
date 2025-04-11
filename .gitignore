@@ -1,10 +1,6 @@
 # Tmp
 *~
 
-# mbedTLS and openSSL
-mbedtls
-openssl
-
 # All certificates
 *.pem
 
